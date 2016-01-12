@@ -7,7 +7,9 @@
 */
 
 /* module to create pinterest like responsive masonry grid system for angular */
-;(function (angular, window, undefined) {
+'use strict';
+
+(function (angular, window, undefined) {
     "use strict";
     //defaults for plugin
     var defaults = {
@@ -187,17 +189,16 @@
                                         $img.css('height', '');
                                         return;
                                     }
+									 //set the item width and no transition state so image width can be calculated properly
+									 $item.addClass('ag-no-transition');
+									 $item.css('width', colWidth + 'px');
 
-                                    //set the item width and no transition state so image width can be calculated properly
-                                    $item.addClass('ag-no-transition');
-                                    $item.css('width', colWidth + 'px');
+									 var actualWidth = $img.attr('actual-width') || $img.attr('data-actual-width'),
+									 actualHeight = $img.attr('actual-height') || $img.attr('data-actual-height');
 
-                                    var actualWidth = $img.attr('actual-width') || $img.attr('data-actual-width'),
-                                        actualHeight = $img.attr('actual-height') || $img.attr('data-actual-height');
-
-                                    if (actualWidth && actualHeight) {
-                                        $img.css('height', (actualHeight * img.width / actualWidth) + 'px');
-                                    }
+									 if (actualWidth && actualHeight) {
+									 $img.css('height', (actualHeight * img.width / actualWidth) + 'px');
+									 }
 
                                 });
                                 $item.removeClass('ag-no-transition');
@@ -234,11 +235,50 @@
                                             top = Math.min.apply(Math, lastRowBottom),
                                             col = lastRowBottom.indexOf(top);
 
+										//console.log("listElms", listElms, item);
+										// updated by colin
+										// Determine proper positioning based on attached classes of the element.
+										var widthFactor = 1,
+											heightFactor = 1,
+											widthFactorTotal = col;
+
+										if(item[0].classList.contains('grid-item-2-wide')){
+											widthFactor = 2;
+										}
+										if(item[0].classList.contains('grid-item-3-wide')){
+											widthFactor = 3;
+										}
+										if(item[0].classList.contains('grid-item-2-tall')){
+											heightFactor = 2;
+										}
+										if(item[0].classList.contains('grid-item-3-tall')){
+											heightFactor = 3;
+										}
+
+										//console.log("*** TOP, COL, lastRowBottom: ", top, col, lastRowBottom, item[0].innerText);
+
                                         //update lastRowBottom value
-                                        lastRowBottom[col] = top + height + options.gutterSize;
+										// updated by colin
+										widthFactorTotal += widthFactor;
+										if(widthFactorTotal > 0 && widthFactorTotal <= 3){
+											for(let i = col; i < widthFactorTotal; i++){
+												lastRowBottom[i] = top + height + options.gutterSize;
+											}
+										} else {
+                                        	lastRowBottom[col] = top + height + options.gutterSize;
+										}
+										if(lastRowBottom.length < 3){
+											let i = widthFactorTotal;
+											while(i < 3){
+												lastRowBottom[i] = top;
+												i++
+											}
+										}
+
+										//console.log("updated lastRowBottom, ", lastRowBottom, lastRowBottom[col]);
 
                                         //set top and left of list items
-                                        var posX = col * (colWidth + options.gutterSize);
+                                        var posX = col * (33.33 + options.gutterSize);
 
                                         var cssObj = {
                                             position: 'absolute',
@@ -246,12 +286,13 @@
                                         };
 
                                         if (options.direction == 'rtol') {
-                                            cssObj.right = posX + 'px';
+                                            cssObj.right = posX + '%';
                                         } else {
-                                            cssObj.left = posX + 'px';
+                                            cssObj.left = posX + '%';
                                         }
 
-                                        cssObj.width = colWidth + 'px';
+										/// TODO: Get the flow to work
+                                        //cssObj.width = colWidth + 'px';
 
                                         item.css(cssObj).addClass('angular-grid-item');
                                     }
@@ -337,7 +378,11 @@
 
                                         //to handle scroll appearance
                                         reflowGrids();
-                                        scope
+										// Let's try it twice to fix some bugs.
+										// TODO: Figure out how to do the refreshment properly without the need to reflow Twice.
+										$timeout(function(){
+											reflowGrids();
+										}, 100)
                                     });
                                 });
                             });
