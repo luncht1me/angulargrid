@@ -380,9 +380,9 @@
 									reflowGrids();
 									// Let's try it twice to fix some bugs.
 									// TODO: Figure out how to do the refreshment properly without the need to reflow Twice.
-									$timeout(function () {
+									/*$timeout(function () {
 										reflowGrids();
-									}, 100)
+									}, 100)*/
 								});
 							});
 						});
