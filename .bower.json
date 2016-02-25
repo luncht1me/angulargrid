@@ -1,0 +1,39 @@
+{
+  "name": "angulargrid",
+  "description": "Pinterest like responsive masonry grid system for angular.",
+  "main": "angulargrid.js",
+  "author": {
+    "name": "Sudhanshu Yadav",
+    "email": "sudhanshuyadav2@gmail.com"
+  },
+  "version": "0.4.1",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/luncht1me/angulargrid"
+  },
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/luncht1me/angulargrid/issues"
+  },
+  "dependencies": {
+    "angular": ">=1.3.0"
+  },
+  "keywords": [
+    "angular-grid",
+    "masonry-grid",
+    "responsive"
+  ],
+  "readmeFilename": "README.md",
+  "demo": "http://ignitersworld.com/lab/angulargrid/",
+  "docs": "http://ignitersworld.com/lab/angulargrid/",
+  "homepage": "http://ignitersworld.com/lab/angulargrid/",
+  "_release": "0.4.1",
+  "_resolution": {
+    "type": "version",
+    "tag": "0.4.1",
+    "commit": "5b4ed106b6e8aa265e1d46cdca118440bdedf965"
+  },
+  "_source": "https://github.com/luncht1me/angulargrid.git",
+  "_target": "0.4.1",
+  "_originalSource": "https://github.com/luncht1me/angulargrid.git"
+}
