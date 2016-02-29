@@ -61,391 +61,387 @@
 		'.angular-grid > .angular-grid-item{opacity : 1}' + '</style>');
 
 	angular.module('angularGrid', []).directive('angularGrid', ['$timeout', '$window', '$q', 'angularGridInstance',
-		function ($timeout, $window, $q, angularGridInstance) {
-			return {
-				restrict: 'A',
-				scope: {
-					model: '=angularGrid',
-					gridWidth: '=',
-					gutterSize: '=',
-					refreshOnImgLoad: '=',
-					direction: '=',
-					cssGrid: '=',
-					options: '=angularGridOptions'
-				},
-				link: function (scope, element, attrs) {
-					var domElm = element[0],
-						win = $($window),
-						agId = attrs.angularGridId,
-						listElms,
-						timeoutPromise;
+			function ($timeout, $window, $q, angularGridInstance) {
+				return {
+					restrict: 'A',
+					scope: {
+						model: '=angularGrid',
+						gridWidth: '=',
+						gutterSize: '=',
+						refreshOnImgLoad: '=',
+						direction: '=',
+						cssGrid: '=',
+						options: '=angularGridOptions'
+					},
+					link: function (scope, element, attrs) {
+						var domElm = element[0],
+							win = $($window),
+							agId = attrs.angularGridId,
+							listElms,
+							timeoutPromise;
 
-					element.addClass('angular-grid');
+						element.addClass('angular-grid');
 
-					//get the user input options
-					var options;
+						//get the user input options
+						var options;
 
-					function getOptions() {
-						options = {};
-						Object.keys(defaults).forEach(function (key) {
-							if (scope[key] != undefined) options[key] = scope[key];
-						});
-						options = angular.extend({}, defaults, options, scope.options);
-						if (options.cssGrid) options.gutterSize = 0;
-					}
+						function getOptions() {
+							options = {};
+							Object.keys(defaults).forEach(function (key) {
+								if (scope[key] != undefined) options[key] = scope[key];
+							});
+							options = angular.extend({}, defaults, options, scope.options);
+							if (options.cssGrid) options.gutterSize = 0;
+						}
 
-					getOptions();
+						getOptions();
 
-					//function to get column width and number of columns
-					function getColWidth() {
+						//function to get column width and number of columns
+						function getColWidth() {
 
-						var contWidth = domElm.offsetWidth,
-							clone; // a clone to calculate width without transition
+							var contWidth = domElm.offsetWidth,
+								clone; // a clone to calculate width without transition
 
-						if (options.cssGrid) {
-							clone = $(listElms[0]).clone();
-							clone.css(cloneCss).addClass('ag-no-transition');
+							if (options.cssGrid) {
+								clone = $(listElms[0]).clone();
+								clone.css(cloneCss).addClass('ag-no-transition');
 
-							element.append(clone);
+								element.append(clone);
 
-							var width = clone[0].offsetWidth;
-							clone.remove();
+								var width = clone[0].offsetWidth;
+								clone.remove();
+
+								return {
+									no: Math.floor((contWidth + 12) / width),
+									width: width
+								};
+							}
+
+							var colWidth = options.gridNo == 'auto' ? options.gridWidth : Math.floor(contWidth / options.gridNo) - options.gutterSize,
+								cols = options.gridNo == 'auto' ? Math.floor(contWidth / (colWidth + options.gutterSize)) : options.gridNo,
+								remainingSpace = (contWidth % (colWidth + options.gutterSize)) + options.gutterSize;
+
+							colWidth = colWidth + Math.floor(remainingSpace / cols);
 
 							return {
-								no: Math.floor((contWidth + 12) / width),
-								width: width
+								no: cols,
+								width: colWidth
 							};
 						}
 
-						var colWidth = options.gridNo == 'auto' ? options.gridWidth : Math.floor(contWidth / options.gridNo) - options.gutterSize,
-							cols = options.gridNo == 'auto' ? Math.floor(contWidth / (colWidth + options.gutterSize)) : options.gridNo,
-							remainingSpace = (contWidth % (colWidth + options.gutterSize)) + options.gutterSize;
+						//method check for image loaded inside a container and trigger callback
+						function afterImageLoad(container, options) {
+							var beforeLoad = options.beforeLoad || angular.noop,
+								onLoad = options.onLoad || angular.noop,
+								isLoaded = options.isLoaded || angular.noop,
+								onFullLoad = options.onFullLoad || angular.noop,
+								ignoreCheck = options.ignoreCheck || angular.noop,
+								allImg = container.find('img'),
+								loadedImgPromises = [];
 
-						colWidth = colWidth + Math.floor(remainingSpace / cols);
-
-						return {
-							no: cols,
-							width: colWidth
-						};
-					}
-
-					//method check for image loaded inside a container and trigger callback
-					function afterImageLoad(container, options) {
-						var beforeLoad = options.beforeLoad || angular.noop,
-							onLoad = options.onLoad || angular.noop,
-							isLoaded = options.isLoaded || angular.noop,
-							onFullLoad = options.onFullLoad || angular.noop,
-							ignoreCheck = options.ignoreCheck || angular.noop,
-							allImg = container.find('img'),
-							loadedImgPromises = [];
-
-						domToAry(allImg).forEach(function (img) {
-							beforeLoad(img);
-							if (!imageLoaded(img) && !ignoreCheck(img)) {
-								loadedImgPromises.push($q(function (resolve, reject) {
-									img.onload = function () {
-										onLoad(img);
-										resolve();
-									};
-									img.onerror = reject;
-								}));
-							} else {
-								isLoaded(img);
-							}
-						});
-
-						if (loadedImgPromises.length) {
-							$q.all(loadedImgPromises).then(onFullLoad, onFullLoad);
-						} else {
-							setTimeout(function () {
-								onFullLoad();
-							}, 0);
-						}
-					}
-
-
-					//function to reflow grids
-					function reflowGrids() {
-						//claclulate width of all element
-						var colInfo = getColWidth(),
-							colWidth = colInfo.width,
-							cols = colInfo.no,
-							i;
-
-						//initialize listRowBottom
-						var lastRowBottom = [];
-						for (i = 0; i < cols; i++) {
-							lastRowBottom.push(0);
-						}
-
-						//if image actual width and actual height is defined update image size so that it dosent cause reflow on image load
-						domToAry(listElms).forEach(function (item) {
-							var $item = single(item);
-
-							domToAry($item.find('img')).forEach(function (img) {
-								var $img = $(img);
-								//if image is already loaded don't do anything
-								if ($img.hasClass('img-loaded')) {
-									$img.css('height', '');
-									return;
+							domToAry(allImg).forEach(function (img) {
+								beforeLoad(img);
+								if (!imageLoaded(img) && !ignoreCheck(img)) {
+									loadedImgPromises.push($q(function (resolve, reject) {
+										img.onload = function () {
+											onLoad(img);
+											resolve();
+										};
+										img.onerror = reject;
+									}));
+								} else {
+									isLoaded(img);
 								}
-								//set the item width and no transition state so image width can be calculated properly
-								$item.addClass('ag-no-transition');
-								$item.css('width', colWidth + 'px');
-
-								var actualWidth = $img.attr('actual-width') || $img.attr('data-actual-width'),
-									actualHeight = $img.attr('actual-height') || $img.attr('data-actual-height');
-
-								if (actualWidth && actualHeight) {
-									$img.css('height', (actualHeight * img.width / actualWidth) + 'px');
-								}
-
 							});
-							$item.removeClass('ag-no-transition');
-						});
 
-						//get all list items new height
-						var clones = listElms.clone();
-
-						clones.addClass('ag-no-transition');
-
-						var clonesCssObj = angular.extend({}, cloneCss);
-						clonesCssObj.width = colWidth + 'px';
-						clones.css(clonesCssObj);
-						element.append(clones);
-
-						//For cloned element again we have to check if image loaded (IOS only)
-
-						afterImageLoad(clones, {
-							ignoreCheck: function (img) {
-								return !single(img).hasClass('img-loaded');
-							},
-							onFullLoad: function () {
-								var listElmHeights = [],
-									item, i, ln;
-								//find height with clones
-								for (i = 0, ln = clones.length; i < ln; i++) {
-									listElmHeights.push(clones[i].offsetHeight);
-								}
-
-								//set new positions
-								for (i = 0, ln = listElms.length; i < ln; i++) {
-									item = single(listElms[i]);
-									var height = listElmHeights[i],
-										top = Math.min.apply(Math, lastRowBottom),
-										col = lastRowBottom.indexOf(top);
-
-									//console.log("listElms", listElms, item);
-									// updated by colin
-									// Determine proper positioning based on attached classes of the element.
-									var widthFactor = 1,
-										heightFactor = 1,
-										widthFactorTotal = col;
-
-									if (item[0].classList.contains('grid-item-2-wide')) {
-										widthFactor = 2;
-									}
-									if (item[0].classList.contains('grid-item-3-wide')) {
-										widthFactor = 3;
-									}
-									if (item[0].classList.contains('grid-item-2-tall')) {
-										heightFactor = 2;
-									}
-									if (item[0].classList.contains('grid-item-3-tall')) {
-										heightFactor = 3;
-									}
-
-									//console.log("*** TOP, COL, lastRowBottom: ", top, col, lastRowBottom, item[0].innerText);
-
-									//update lastRowBottom value
-									// updated by colin
-									widthFactorTotal += widthFactor;
-									if (widthFactorTotal > 0 && widthFactorTotal <= 3) {
-										for (let i = col; i < widthFactorTotal; i++) {
-
-											lastRowBottom[i] = top + height + options.gutterSize;
-											if(i > 0 && Math.abs(lastRowBottom[i] - lastRowBottom[i-1]) == 1){
-												console.log("diff of 1");
-												lastRowBottom[i] = lastRowBottom[i-1];
-											}
-										}
-									} else {
-										lastRowBottom[col] = top + height + options.gutterSize;
-									}
-									if (lastRowBottom.length < 3) {
-										let i = widthFactorTotal;
-										while (i < 3) {
-											lastRowBottom[i] = top;
-											i++
-										}
-									}
-
-									console.log("updated lastRowBottom, ", lastRowBottom, lastRowBottom[col]);
-
-									//set top and left of list items
-									var posX = col * (33.33 + options.gutterSize);
-
-									var cssObj = {
-										position: 'absolute',
-										top: top + 'px'
-									};
-
-									if (options.direction == 'rtol') {
-										cssObj.right = posX + '%';
-									} else {
-										cssObj.left = posX + '%';
-									}
-
-									/// TODO: Get the flow to work
-									//cssObj.width = colWidth + 'px';
-
-									item.css(cssObj).addClass('angular-grid-item');
-								}
-
-								//set the height of container
-								element.css('height', Math.max.apply(Math, lastRowBottom) + 'px');
-
-								clones.remove();
+							if (loadedImgPromises.length) {
+								$q.all(loadedImgPromises).then(onFullLoad, onFullLoad);
+							} else {
+								setTimeout(function () {
+									onFullLoad();
+								}, 0);
 							}
-						});
-					}
+						}
 
 
-					//function to handle asynchronous image loading
-					function handleImage() {
-						var reflowPending = false;
-						domToAry(listElms).forEach(function (listItem) {
-							var $listItem = $(listItem),
-								allImg = $listItem.find('img');
+						//function to reflow grids
+						function reflowGrids() {
+							//claclulate width of all element
+							var colInfo = getColWidth(),
+								colWidth = colInfo.width,
+								cols = colInfo.no,
+								i;
 
-							if (!allImg.length) {
-								return;
+							//initialize listRowBottom
+							var lastRowBottom = [];
+							for (i = 0; i < cols; i++) {
+								lastRowBottom.push(0);
 							}
 
-							//add image loading class on list item
-							$listItem.addClass('img-loading');
+							//if image actual width and actual height is defined update image size so that it dosent cause reflow on image load
+							domToAry(listElms).forEach(function (item) {
+								var $item = single(item);
 
-							afterImageLoad($listItem, {
-								beforeLoad: function (img) {
-									single(img).addClass('img-loading');
-								},
-								isLoaded: function (img) {
-									single(img).removeClass('img-loading').addClass('img-loaded');
-								},
-								onLoad: function (img) {
-									if (!reflowPending && options.refreshOnImgLoad) {
-										reflowPending = true;
-										$timeout(function () {
-											reflowGrids();
-											reflowPending = false;
-										}, 100);
+								domToAry($item.find('img')).forEach(function (img) {
+									var $img = $(img);
+									//if image is already loaded don't do anything
+									if ($img.hasClass('img-loaded')) {
+										$img.css('height', '');
+										return;
 									}
-									single(img).removeClass('img-loading').addClass('img-loaded');
+									//set the item width and no transition state so image width can be calculated properly
+									$item.addClass('ag-no-transition');
+									$item.css('width', colWidth + 'px');
+
+									var actualWidth = $img.attr('actual-width') || $img.attr('data-actual-width'),
+										actualHeight = $img.attr('actual-height') || $img.attr('data-actual-height');
+
+									if (actualWidth && actualHeight) {
+										$img.css('height', (actualHeight * img.width / actualWidth) + 'px');
+									}
+
+								});
+								$item.removeClass('ag-no-transition');
+							});
+
+							//get all list items new height
+							var clones = listElms.clone();
+
+							clones.addClass('ag-no-transition');
+
+							var clonesCssObj = angular.extend({}, cloneCss);
+							clonesCssObj.width = colWidth + 'px';
+							clones.css(clonesCssObj);
+							element.append(clones);
+
+							//For cloned element again we have to check if image loaded (IOS only)
+
+							afterImageLoad(clones, {
+								ignoreCheck: function (img) {
+									return !single(img).hasClass('img-loaded');
 								},
 								onFullLoad: function () {
-									$listItem.removeClass('img-loading').addClass('img-loaded');
+									var listElmHeights = [],
+										item, i, ln;
+									//find height with clones
+									for (i = 0, ln = clones.length; i < ln; i++) {
+										listElmHeights.push(clones[i].offsetHeight);
+									}
+
+									//set new positions
+									for (i = 0, ln = listElms.length; i < ln; i++) {
+										item = single(listElms[i]);
+										var height = listElmHeights[i],
+											top = Math.min.apply(Math, lastRowBottom),
+											col = lastRowBottom.indexOf(top);
+
+										//console.log("listElms", listElms, item);
+										// updated by colin
+										// Determine proper positioning based on attached classes of the element.
+										var widthFactor = 1,
+											heightFactor = 1,
+											widthFactorTotal = col;
+
+										if (item[0].classList.contains('grid-item-2-wide')) {
+											widthFactor = 2;
+										}
+										if (item[0].classList.contains('grid-item-3-wide')) {
+											widthFactor = 3;
+										}
+										if (item[0].classList.contains('grid-item-2-tall')) {
+											heightFactor = 2;
+										}
+										if (item[0].classList.contains('grid-item-3-tall')) {
+											heightFactor = 3;
+										}
+
+										//console.log("*** TOP, COL, lastRowBottom: ", top, col, lastRowBottom, item[0].innerText);
+
+										//update lastRowBottom value
+										// updated by colin
+										widthFactorTotal += widthFactor;
+										if (widthFactorTotal > 0 && widthFactorTotal <= 3) {
+											for (let i = col; i < widthFactorTotal; i++) {
+												lastRowBottom[i] = top + height + options.gutterSize;
+												if(i > 0 && Math.abs(lastRowBottom[i] - lastRowBottom[i-1]) == 1){
+													lastRowBottom[i] = lastRowBottom[i-1];
+												}
+											}
+										} else {
+											lastRowBottom[col] = top + height + options.gutterSize;
+										}
+										if (lastRowBottom.length < 3) {
+											let i = widthFactorTotal;
+											while (i < 3) {
+												lastRowBottom[i] = top;
+												i++
+											}
+										}
+
+										//set top and left of list items
+										var posX = col * (33.33 + options.gutterSize);
+
+										var cssObj = {
+											position: 'absolute',
+											top: top + 'px'
+										};
+
+										if (options.direction == 'rtol') {
+											cssObj.right = posX + '%';
+										} else {
+											cssObj.left = posX + '%';
+										}
+
+										/// TODO: Get the flow to work
+										//cssObj.width = colWidth + 'px';
+
+										item.css(cssObj).addClass('angular-grid-item');
+									}
+
+									//set the height of container
+									element.css('height', Math.max.apply(Math, lastRowBottom) + 'px');
+
+									clones.remove();
 								}
 							});
-						});
-
-					}
-
-					//function to check for ng animation
-					function ngCheckAnim() {
-						var leavingElm = domToAry(listElms).filter(function (elm) {
-							return single(elm).hasClass('ng-leave');
-						});
-						return $q(function (resolve) {
-							if (!leavingElm.length) {
-								resolve();
-							} else {
-								single(leavingElm[0]).one('webkitTransitionEnd transitionend msTransitionEnd oTransitionEnd', function () {
-									$timeout(function () {
-										listElms = element.children();
-										resolve();
-									});
-								});
-							}
-						});
-					}
-
-					//watch on modal key
-
-					function watch() {
-						$timeout(function () {
-							listElms = element.children();
-
-							ngCheckAnim().then(function () {
-								//handle images
-								handleImage();
-
-								$timeout(function () {
-
-									//to handle scroll appearance
-									reflowGrids();
-									// Let's try it twice to fix some bugs.
-									// TODO: Figure out how to do the refreshment properly without the need to reflow Twice.
-									$timeout(function () {
-										reflowGrids();
-									}, 100)
-								});
-							});
-						});
-					}
-
-					scope.$watch('model', watch, true);
-
-
-					//watch option for changes
-					function watchOptions() {
-						getOptions();
-						if (listElms) reflowGrids();
-					};
-
-					scope.$watch('options', watchOptions, true);
-
-					Object.keys(defaults).forEach(function (key) {
-						if (scope[key] != undefined) scope.$watch(key, watchOptions);
-					});
-
-					//listen window resize event and reflow grids after a timeout
-					var lastDomWidth = domElm.offsetWidth;
-
-					function windowResizeCallback() {
-						var contWidth = domElm.offsetWidth;
-						if (lastDomWidth == contWidth) return;
-						lastDomWidth = contWidth;
-
-
-						if (timeoutPromise) {
-							$timeout.cancel(timeoutPromise);
 						}
 
-						timeoutPromise = $timeout(function () {
-							reflowGrids();
-						}, 100);
-					}
 
-					win.on('resize', windowResizeCallback);
+						//function to handle asynchronous image loading
+						function handleImage() {
+							var reflowPending = false;
+							domToAry(listElms).forEach(function (listItem) {
+								var $listItem = $(listItem),
+									allImg = $listItem.find('img');
 
-					//add instance to factory if id is assigned
-					if (agId) {
-						angularGridInstance[agId] = {
-							refresh: function () {
-								watch();
-							}
+								if (!allImg.length) {
+									return;
+								}
+
+								//add image loading class on list item
+								$listItem.addClass('img-loading');
+
+								afterImageLoad($listItem, {
+									beforeLoad: function (img) {
+										single(img).addClass('img-loading');
+									},
+									isLoaded: function (img) {
+										single(img).removeClass('img-loading').addClass('img-loaded');
+									},
+									onLoad: function (img) {
+										if (!reflowPending && options.refreshOnImgLoad) {
+											reflowPending = true;
+											$timeout(function () {
+												reflowGrids();
+												reflowPending = false;
+											}, 100);
+										}
+										single(img).removeClass('img-loading').addClass('img-loaded');
+									},
+									onFullLoad: function () {
+										$listItem.removeClass('img-loading').addClass('img-loaded');
+									}
+								});
+							});
+
+						}
+
+						//function to check for ng animation
+						function ngCheckAnim() {
+							var leavingElm = domToAry(listElms).filter(function (elm) {
+								return single(elm).hasClass('ng-leave');
+							});
+							return $q(function (resolve) {
+								if (!leavingElm.length) {
+									resolve();
+								} else {
+									single(leavingElm[0]).one('webkitTransitionEnd transitionend msTransitionEnd oTransitionEnd', function () {
+										$timeout(function () {
+											listElms = element.children();
+											resolve();
+										});
+									});
+								}
+							});
+						}
+
+						//watch on modal key
+
+						function watch() {
+							$timeout(function () {
+								listElms = element.children();
+
+								ngCheckAnim().then(function () {
+									//handle images
+									handleImage();
+
+									$timeout(function () {
+
+										//to handle scroll appearance
+										reflowGrids();
+										// Let's try it twice to fix some bugs.
+										// TODO: Figure out how to do the refreshment properly without the need to reflow Twice.
+										$timeout(function () {
+											reflowGrids();
+										}, 100)
+									});
+								});
+							});
+						}
+
+						scope.$watch('model', watch, true);
+
+
+						//watch option for changes
+						function watchOptions() {
+							getOptions();
+							if (listElms) reflowGrids();
 						};
-					}
 
-					//destroy on refrences and events on scope destroy
-					scope.$on('$destroy', function () {
-						if (agId) delete angularGridInstance[agId];
-						win.off('resize', windowResizeCallback);
-					});
-				}
-			};
-		}
-	])
+						scope.$watch('options', watchOptions, true);
+
+						Object.keys(defaults).forEach(function (key) {
+							if (scope[key] != undefined) scope.$watch(key, watchOptions);
+						});
+
+						//listen window resize event and reflow grids after a timeout
+						var lastDomWidth = domElm.offsetWidth;
+
+						function windowResizeCallback() {
+							var contWidth = domElm.offsetWidth;
+							if (lastDomWidth == contWidth) return;
+							lastDomWidth = contWidth;
+
+
+							if (timeoutPromise) {
+								$timeout.cancel(timeoutPromise);
+							}
+
+							timeoutPromise = $timeout(function () {
+								reflowGrids();
+							}, 100);
+						}
+
+						win.on('resize', windowResizeCallback);
+
+						//add instance to factory if id is assigned
+						if (agId) {
+							angularGridInstance[agId] = {
+								refresh: function () {
+									watch();
+								}
+							};
+						}
+
+						//destroy on refrences and events on scope destroy
+						scope.$on('$destroy', function () {
+							if (agId) delete angularGridInstance[agId];
+							win.off('resize', windowResizeCallback);
+						});
+					}
+				};
+			}
+		])
 		//a factory to store angulargrid instances which can be injected to controllers or directive
 		.factory('angularGridInstance', function () {
 
