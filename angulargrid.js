@@ -261,20 +261,20 @@
 										// updated by colin
 										widthFactorTotal += widthFactor;
 										if (widthFactorTotal > 0 && widthFactorTotal <= 3) {
-											for (let i = col; i < widthFactorTotal; i++) {
-												lastRowBottom[i] = top + height + options.gutterSize;
-												if(i > 0 && Math.abs(lastRowBottom[i] - lastRowBottom[i-1]) == 1){
-													lastRowBottom[i] = lastRowBottom[i-1];
+											for (var j = col; j < widthFactorTotal; j++) {
+												lastRowBottom[j] = top + height + options.gutterSize;
+												if(j > 0 && Math.abs(lastRowBottom[j] - lastRowBottom[j-1]) == 1){
+													lastRowBottom[j] = lastRowBottom[j-1];
 												}
 											}
 										} else {
 											lastRowBottom[col] = top + height + options.gutterSize;
 										}
 										if (lastRowBottom.length < 3) {
-											let i = widthFactorTotal;
-											while (i < 3) {
-												lastRowBottom[i] = top;
-												i++
+											var k = widthFactorTotal;
+											while (k < 3) {
+												lastRowBottom[k] = top;
+												k++
 											}
 										}
 
